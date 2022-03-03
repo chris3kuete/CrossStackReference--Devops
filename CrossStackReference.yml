@@ -1,0 +1,90 @@
+Parameters:
+  NetworkStackName:
+    Description: Name of the base stack with all the resources
+    Type: String
+    Default: SampleNetworkCrossStack
+
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+    Description: Enter t2.micro, m1.small, or m1.large. Default is t2.micro.
+  KeyName:
+    Description: Name of your EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      "HVM64": "ami-0ff8a91507f77f867"
+    us-west-1:
+      "HVM64": "ami-0bdb828fd58c52235"
+    eu-west-1:
+      "HVM64": "ami-047bb4163c506cd98"
+    ap-southeast-1:
+      "HVM64": "ami-08569b978cc4dfa10"
+    ap-northeast-1:
+      "HVM64": "ami-06cd52961ce9f0d85"
+    us-west-2:
+      "HVM64": ami-0b9f27b05e1de14e9
+
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", HVM64]
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - GroupSet:
+            - Fn::ImportValue:
+                Fn::Sub: "${NetworkStackName}-SecurityGroupID"
+          AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          DeleteOnTermination: "true"
+          SubnetId:
+            Fn::ImportValue:
+              Fn::Sub: "${NetworkStackName}-SubnetID"
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd php
+          systemctl start httpd
+          systemctl enable httpd
+          usermod -a -G apache ec2-user
+          chown -R ec2-user:apache /var/www
+          chmod 2775 /var/www
+          find /var/www -type d -exec chmod 2775 {} \;
+          find /var/www -type f -exec chmod 0664 {} \;
+          cat << 'EOF' > /var/www/html/index.php
+            <!DOCTYPE html>
+            <html>
+            <body>
+              <center>
+               <p> My name is Chris Daniel Kuete </p>
+              </center>
+            </body>
+            </html>
+          EOF
+
+  MyIEP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref EC2Instance
+
+Outputs:
+  PrivateIp:
+    Description: server's private ipv4
+    Value: GetAtt EC2Instance.PrivateIp
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateIp"
+
+  InstanceDNSName:
+    Description: The DNSName of the instance
+    Value: !GetAtt EC2Instance.PublicDnsName
+    Export:
+      Name: !Sub "${AWS::StackName}-DNSName"
