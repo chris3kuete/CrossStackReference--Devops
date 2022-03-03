@@ -1,5 +1,6 @@
 # CrossStackReference--Devops
 Reference Resources from another stack
+
 This project deploys a sample network configuration stack called SampleNetworkCrossStack
 Then Deploy a new stack that will setup a Linux EC2 instance and reference the sample network stack previously created
 The new stack:
